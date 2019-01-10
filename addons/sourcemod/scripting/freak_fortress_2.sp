@@ -3611,7 +3611,7 @@ public Action:OnRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 		}
 	}
 
-	StopMusic();
+	StopMusic(_, true, nomusic);
 	DrawGameTimer=INVALID_HANDLE;
 
 	new bool:isBossAlive;
