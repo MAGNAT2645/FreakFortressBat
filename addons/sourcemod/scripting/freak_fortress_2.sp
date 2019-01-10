@@ -137,9 +137,10 @@ new curHelp[MAXPLAYERS+1];
 new uberTarget[MAXPLAYERS+1];
 new shield[MAXPLAYERS+1];
 new detonations[MAXPLAYERS+1];
-new bool:playBGM[MAXPLAYERS+1]=true;
+//new bool:playBGM[MAXPLAYERS+1]=true;
 
 new String:currentBGM[MAXPLAYERS+1][PLATFORM_MAX_PATH];
+new bool:nomusic=false;
 
 new FF2flags[MAXPLAYERS+1];
 
@@ -162,6 +163,8 @@ new bool:emitRageSound[MAXPLAYERS+1];
 new bool:bossHasReloadAbility[MAXPLAYERS+1];
 new bool:bossHasRightMouseAbility[MAXPLAYERS+1];
 
+float PlayBGMAt[MAXPLAYERS+1]=INACTIVE;
+new cursongId[MAXPLAYERS+1]=1;
 new timeleft;
 
 new Handle:cvarVersion;
@@ -2230,7 +2233,7 @@ public OnMapStart()
 		KSpreeTimer[client]=0.0;
 		FF2flags[client]=0;
 		Incoming[client]=-1;
-		MusicTimer[client]=INVALID_HANDLE;
+		PlayBGMAt[client]=INACTIVE;
 	}
 
 	for(new specials; specials<MAXSPECIALS; specials++)
@@ -2248,12 +2251,26 @@ public OnMapEnd()
 	if(Enabled || Enabled2)
 	{
 		DisableFF2();
+		StopMusic(_, true, nomusic);
+		for(new client; client<=MaxClients; client++)
+		{
+			if(PlayBGMAt[client]!=INACTIVE)
+			{
+				PlayBGMAt[client]=INACTIVE;
+			}
+		}
 	}
 }
 
 public OnPluginEnd()
 {
 	OnMapEnd();
+	SetConVarString(sName, hName);
+	if (!ReloadFF2 && CheckRoundState() == 1)
+	{
+		ForceTeamWin(0);
+		CPrintToChatAll("{olive}[FF2]{default} The plugin has been unexpectedly unloaded!");
+	}
 }
 
 public EnableFF2()
@@ -4709,6 +4726,7 @@ public Action:MessageTimer(Handle:timer)
 	{
 		if(IsValidClient(client))
 		{
+			PlayBGMAt[client]=GetEngineTime()+2.0;
 			SetGlobalTransTarget(client);
 			FF2_ShowSyncHudText(client, infoHUD, text);
 		}
@@ -6149,6 +6167,11 @@ public Action:CheckItems(Handle:timer, any:userid)
 		TF2_RespawnPlayer(client);
 	}
 	civilianCheck[client]=0;
+	
+	if(GetGameTime()>=PlayBGMAt[client])
+	{
+		PrepareBGM(client);
+	}
 	return Plugin_Continue;
 }
 
@@ -6480,6 +6503,7 @@ public Action:Command_StartMusic(client, args)
 		}
 		else
 		{
+			nomusic=false;
 			StartMusic();
 			CReplyToCommand(client, "{olive}[FF2]{default} Started boss music for all clients.");
 		}
@@ -6520,6 +6544,7 @@ public Action:Command_StopMusic(client, args)
 		}
 		else
 		{
+			nomusic=true;
 			StopMusic(_, true);
 			CReplyToCommand(client, "{olive}[FF2]{default} Stopped boss music for all clients.");
 		}
@@ -6784,7 +6809,7 @@ public OnClientPostAdminCheck(client)
 
 	//We use the 0th index here because client indices can change.
 	//If this is false that means music is disabled for all clients, so don't play it for new clients either.
-	if(playBGM[0])
+	/*if(playBGM[0])
 	{
 		playBGM[client]=true;
 		if(Enabled)
@@ -6795,6 +6820,14 @@ public OnClientPostAdminCheck(client)
 	else
 	{
 		playBGM[client]=false;
+	}*/
+	if(nomusic)
+	{
+		strcopy(currentBGM[client], PLATFORM_MAX_PATH, "ff2_stop_music");
+	}
+	if(CheckRoundState()==1)
+	{
+		PlayBGMAt[client]=GetEngineTime()+2.0;
 	}
 }
 
@@ -6858,15 +6891,17 @@ public OnClientDisconnect(client)
 		}
 	}
 
+	PlayBGMAt[client]=INACTIVE;
+	strcopy(currentBGM[client], PLATFORM_MAX_PATH, "");
 	FF2flags[client]=0;
 	Damage[client]=0;
 	uberTarget[client]=-1;
 
-	if(MusicTimer[client]!=INVALID_HANDLE)
+	/*if(MusicTimer[client]!=INVALID_HANDLE)
 	{
 		KillTimer(MusicTimer[client]);
 		MusicTimer[client]=INVALID_HANDLE;
-	}
+	}*/
 }
 
 public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
