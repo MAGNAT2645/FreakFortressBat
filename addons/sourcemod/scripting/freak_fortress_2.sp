@@ -1864,6 +1864,14 @@ public OnPluginStart()
 	#if defined _tf2attributes_included
 	tf2attributes=LibraryExists("tf2attributes");
 	#endif
+
+	for(new client=1;client<=MaxClients;client++)
+	{
+		if(!IsValidClient(client))
+			continue;
+
+		PlayBGMAt[client]=INACTIVE;
+	}
 }
 
 public Action:Command_SetRage(client, args)
@@ -2253,7 +2261,7 @@ public OnMapEnd()
 	if(Enabled || Enabled2)
 	{
 		DisableFF2();
-		StopMusic(_, true, nomusic);
+		StopMusic(_, true);
 		for(new client; client<=MaxClients; client++)
 		{
 			if(PlayBGMAt[client]!=INACTIVE)
@@ -3602,7 +3610,7 @@ public Action:OnRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 		}
 	}
 
-	StopMusic(_, true, nomusic);
+	StopMusic(_, true);
 	DrawGameTimer=INVALID_HANDLE;
 
 	new bool:isBossAlive;
@@ -6337,19 +6345,19 @@ public Action:Command_StopMusic(client, args)
 			{
 				for(new target; target<matches; target++)
 				{
-					StopMusic(targets[target], true);
+					StopMusic(targets[target], true, true);
 				}
 			}
 			else
 			{
-				StopMusic(targets[0], true);
+				StopMusic(targets[0], true, true);
 			}
 			CReplyToCommand(client, "{olive}[FF2]{default} Stopped boss music for %s.", targetName);
 		}
 		else
 		{
 			nomusic=true;
-			StopMusic(_, true);
+			StopMusic(_, true, true);
 			CReplyToCommand(client, "{olive}[FF2]{default} Stopped boss music for all clients.");
 		}
 		return Plugin_Handled;
@@ -6595,6 +6603,7 @@ public OnClientPostAdminCheck(client)
 	// TODO: Hook these inside of EnableFF2() or somewhere instead
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
+	SDKHook(client, SDKHook_PreThink, Client_PreThink);
 
 	FF2flags[client]=0;
 	Damage[client]=0;
@@ -6632,6 +6641,27 @@ public OnClientPostAdminCheck(client)
 	if(CheckRoundState()==1)
 	{
 		PlayBGMAt[client]=GetEngineTime()+2.0;
+	}
+}
+
+public void Client_PreThink(int client)
+{
+	if(!Enabled)
+		return;
+
+	if(!IsValidClient(client))
+	{
+		SDKUnhook(client, SDKHook_PreThink, Client_PreThink);
+	}
+
+	Timers_PreThink(client, GetEngineTime());
+}
+
+public void Timers_PreThink(int client, float gTime)
+{
+	if(gTime>=PlayBGMAt[client])
+	{
+		PrepareBGM(client);
 	}
 }
 
@@ -10506,7 +10536,7 @@ ToggleBGM(client, bool:enable)
 	else
 	{
 		SetClientSoundOptions(client, SOUNDEXCEPT_MUSIC, false);
-		StopMusic(client, true, nomusic);    
+		StopMusic(client, true);    
 	}
 }
 
@@ -10523,17 +10553,17 @@ PlayBGM(client, String:music[], Float:time, bool:loop=true, char[] name="", char
 		return;
 	}
 
-	new Action:action;
+	Action action;
 	Call_StartForward(OnMusic);
-	char temp[3][PLATFORM_MAX_PATH];
-	new Float:time2=time;
+	decl String:temp[3][PLATFORM_MAX_PATH];
+	float time2=time;
 	strcopy(temp[0], sizeof(temp[]), music);
 	strcopy(temp[1], sizeof(temp[]), name);
 	strcopy(temp[2], sizeof(temp[]), artist);
 	Call_PushStringEx(temp[0], sizeof(temp[]), SM_PARAM_STRING_UTF8 | SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
 	Call_PushFloatRef(time2);
-	Call_PushStringEx(temp[1], sizeof(temp[]), SM_PARAM_STRING_UTF8 | SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
-	Call_PushStringEx(temp[2], sizeof(temp[]), SM_PARAM_STRING_UTF8 | SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	//Call_PushStringEx(temp[1], sizeof(temp[]), SM_PARAM_STRING_UTF8 | SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	//Call_PushStringEx(temp[2], sizeof(temp[]), SM_PARAM_STRING_UTF8 | SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
 	Call_Finish(action);
 	switch(action)
 	{
@@ -10546,8 +10576,8 @@ PlayBGM(client, String:music[], Float:time, bool:loop=true, char[] name="", char
 		{
 			strcopy(music, PLATFORM_MAX_PATH, temp[0]);
 			time=time2;
-			strcopy(name, 256, temp[1]);
-			strcopy(artist, 256, temp[2]);
+			//strcopy(name, 256, temp[1]);
+			//strcopy(artist, 256, temp[2]);
 		}
 	}
 
@@ -10571,7 +10601,7 @@ PlayBGM(client, String:music[], Float:time, bool:loop=true, char[] name="", char
 	
 	CPrintToChat(client, "{olive}[FF2]{default} %t", "track_info", artist, name);
 	
-	if(loop && time>1)
+	if(time>1)
 	{
 		if(PlayBGMAt[client]!=INACTIVE)
 		{
@@ -10599,7 +10629,7 @@ public Action Command_SkipSong(int client, int args)
 		return Plugin_Handled;
 	}
 
-	if(StrEqual(currentBGM[client], "ff2_stop_music", true)|| !CheckSoundException(client, SOUNDEXCEPT_MUSIC))
+	if(StrEqual(currentBGM[client], "ff2_stop_music", true) || !CheckSoundException(client, SOUNDEXCEPT_MUSIC))
 	{
 		CReplyToCommand(client, "{olive}[FF2]{default} %t", "ff2_music_disabled");
 		return Plugin_Handled;
@@ -10708,7 +10738,7 @@ public Action Command_Tracklist(int client, int args)
 		return Plugin_Handled;
 	}
 	
-	if(StrEqual(currentBGM[client], "ff2_stop_music", true)|| !CheckSoundException(client, SOUNDEXCEPT_MUSIC))
+	if(StrEqual(currentBGM[client], "ff2_stop_music", true) || !CheckSoundException(client, SOUNDEXCEPT_MUSIC))
 	{
 		CReplyToCommand(client, "{olive}[FF2]{default} %t", "ff2_music_disabled");
 		return Plugin_Handled;
@@ -10790,7 +10820,8 @@ stock float GetSongLength(char[] trackIdx)
 	return duration;
 }
 
-stock void GetSongTime(int trackIdx, char[] timeStr, length)
+//stock void GetSongTime(int trackIdx, char[] timeStr, length)
+stock GetSongTime(int trackIdx, char[] timeStr, length)
 {
 	char songIdx[32];
 	Format(songIdx, sizeof(songIdx), "time%i", trackIdx);
@@ -10867,9 +10898,10 @@ public int Command_TrackListH(Handle menu, MenuAction action, int param1, int pa
 			}
 		}
 	}
+	return;
 }
 
-void StartMusic(int client=0)
+StartMusic(int client=0)
 {
 	if(client<=0)  //Start music for all clients
 	{
@@ -10890,7 +10922,7 @@ void StartMusic(int client=0)
 	}
 }
 
-void PrepareBGM(client)
+PrepareBGM(client)
 {
 	if(CheckRoundState()!=1 || (!client && MapHasMusic()) || StrEqual(currentBGM[client], "ff2_stop_music", true))
 	{
@@ -10913,7 +10945,8 @@ void PrepareBGM(client)
 		index=GetRandomInt(1, index-1);
 		Format(music, 10, "time%i", index);
 		
-		float time=GetSongLength(music);
+		//float time=GetSongLength(music);
+		new Float:time=KvGetFloat(BossKV[Special[0]], music);
 
 		Format(music, 10, "path%i", index);
 		KvGetString(BossKV[Special[0]], music, music, sizeof(music));
@@ -10935,7 +10968,7 @@ void PrepareBGM(client)
 		}
 		else
 		{
-			char bossName[64];
+			decl String:bossName[64];
 			KvRewind(BossKV[Special[0]]);
 			KvGetString(BossKV[Special[0]], "filename", bossName, sizeof(bossName));
 			LogError("[FF2 Bosses] Character %s is missing BGM file '%s'!", bossName, temp);
@@ -10951,7 +10984,7 @@ void PrepareBGM(client)
 	}
 }
 
-void StopMusic(int client=0, bool endloop=false, bool permanent=false)
+StopMusic(int client=0, bool endloop=false, bool permanent=false)
 {
 	if(client<=0)  //Stop music for all clients
 	{
@@ -11713,12 +11746,14 @@ public Native_GetSpecialKV(Handle:plugin, numParams)
 
 public Native_StartMusic(Handle:plugin, numParams)
 {
-	StartMusic(GetNativeCell(1));
+	new client=GetNativeCell(1);
+	StopMusic(client, true);
+	StartMusic(client);
 }
 
 public Native_StopMusic(Handle:plugin, numParams)
 {
-	StopMusic(GetNativeCell(1));
+	StopMusic(GetNativeCell(1), true);
 }
 
 public Native_RandomSound(Handle:plugin, numParams)
