@@ -265,6 +265,11 @@
 	{
 		"en"	"You have used weighdown!"
 	}
+	"track_info"	// Chat
+	{
+		"#format" "{1:s},{2:s}"
+		"en"	"Now Playing: {1} - {2}"
+	}
 	"ff2_music"	// Chat
 	{
 		"#format" "{1:s}"
