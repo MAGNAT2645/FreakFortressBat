@@ -584,7 +584,7 @@ stock FindVersionData(Handle:panel, versionIndex)
 	{
 		case 125:  //1.17.0
 		{
-			DrawPanelText(panel, "1) Advanced music menu and commands (Batfoxkid from SHADoW)");
+			DrawPanelText(panel, "1) Advanced music menu, commands, and system (Batfoxkid from SHADoW)");
 		}
 		case 124:  //1.16.11
 		{
@@ -6661,6 +6661,11 @@ public void Timers_PreThink(int client, float gTime)
 {
 	if(gTime>=PlayBGMAt[client])
 	{
+		if(CheckRoundState()!=1 || (!client && MapHasMusic()))
+		{
+			PlayBGMAt[client]=INACTIVE;
+			return;
+		}
 		PrepareBGM(client);
 	}
 }
@@ -10547,15 +10552,16 @@ public void PlayMusic(int client, char[] music, float time, bool loop, char[] na
 
 PlayBGM(client, String:music[], Float:time, bool:loop=true, char[] name="", char[] artist="")
 {
-	if(CheckRoundState()!=1 || (!client && MapHasMusic()) || StrEqual(currentBGM[client], "ff2_stop_music", true))
+	/*if(CheckRoundState()!=1 || (!client && MapHasMusic()) || StrEqual(currentBGM[client], "ff2_stop_music", true))
 	{
 		PlayBGMAt[client]=INACTIVE;
 		return;
-	}
+	}*/
 
 	Action action;
 	Call_StartForward(OnMusic);
-	decl String:temp[3][PLATFORM_MAX_PATH];
+	//decl String:temp[3][PLATFORM_MAX_PATH];
+	char temp[3][PLATFORM_MAX_PATH];
 	float time2=time;
 	strcopy(temp[0], sizeof(temp[]), music);
 	strcopy(temp[1], sizeof(temp[]), name);
@@ -10583,10 +10589,14 @@ PlayBGM(client, String:music[], Float:time, bool:loop=true, char[] name="", char
 
 	if(CheckSoundException(client, SOUNDEXCEPT_MUSIC))
 	{
-		char bgm[PLATFORM_MAX_PATH];
-		Format(bgm, PLATFORM_MAX_PATH, "#%s", music);
-		strcopy(currentBGM[client], PLATFORM_MAX_PATH, bgm);
-		ClientCommand(client, "playgamesound \"%s\"", bgm);
+		//char bgm[PLATFORM_MAX_PATH];
+		//Format(bgm, PLATFORM_MAX_PATH, "#%s", music);
+		//strcopy(currentBGM[client], PLATFORM_MAX_PATH, bgm);
+		//ClientCommand(client, "playgamesound \"%s\"", bgm);
+		strcopy(currentBGM[client], PLATFORM_MAX_PATH, music);
+		EmitSoundToClient(client, music);
+		// Note to self: playgamesound doesn't adjust with the music slider
+		// (Might just be me idk)
 	}
 	
 	if(!name[0])
@@ -10601,7 +10611,7 @@ PlayBGM(client, String:music[], Float:time, bool:loop=true, char[] name="", char
 	
 	CPrintToChat(client, "{olive}[FF2]{default} %t", "track_info", artist, name);
 	
-	if(time>1)
+	if(loop && time>1)
 	{
 		if(PlayBGMAt[client]!=INACTIVE)
 		{
@@ -10933,8 +10943,10 @@ PrepareBGM(client)
 	KvRewind(BossKV[Special[0]]);
 	if(KvJumpToKey(BossKV[Special[0]], "sound_bgm"))
 	{
-		char music[PLATFORM_MAX_PATH];
-		int index;
+		//char music[PLATFORM_MAX_PATH];
+		decl String:music[PLATFORM_MAX_PATH];
+		//int index;
+		new index;
 		do
 		{
 			index++;
@@ -10951,10 +10963,10 @@ PrepareBGM(client)
 		Format(music, 10, "path%i", index);
 		KvGetString(BossKV[Special[0]], music, music, sizeof(music));
 		
-		cursongId[client]=index;
+		//cursongId[client]=index;
 		
 		// manual song ID
-		char id3[4][256];
+		/*char id3[4][256];
 		Format(id3[0], sizeof(id3[]), "name%i", index);
 		KvGetString(BossKV[Special[0]], id3[0], id3[2], sizeof(id3[]));
 		Format(id3[1], sizeof(id3[]), "artist%i", index);
@@ -10965,6 +10977,18 @@ PrepareBGM(client)
 		if(FileExists(temp, true))
 		{
 			PlayBGM(client, music, time, _, id3[2], id3[3]);
+		}*/
+		char id3[256], title[256], artist[256];
+		Format(id3, sizeof(id3), "title%i", index);
+		KvGetString(BossKV[characterIdx[0]], id3, title, sizeof(title));
+		Format(id3, sizeof(id3), "artist%i", index);
+		KvGetString(BossKV[characterIdx[0]], id3, artist, sizeof(artist));
+
+		decl String:temp[PLATFORM_MAX_PATH];
+		Format(temp, sizeof(temp), "sound/%s", music);
+		if(FileExists(temp, true))
+		{
+			PlayBGM(client, music, time, _, title, artist);
 		}
 		else
 		{
